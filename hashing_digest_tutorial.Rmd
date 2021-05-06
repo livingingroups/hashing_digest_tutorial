@@ -1,0 +1,155 @@
+---
+title: "Hashing with the `digest` package in R"
+author: "Brendan Barrett"
+date: "5/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(digest)
+```
+
+# Intro
+
+SHA-1 (Secure Hash Algorithm 1) is a cryptographic hash function that takes an input and produces a unique hash value (often a 40 digit hexadecimal number) designed by the NSA.
+An SHA-1 hash has a possible $2^{160}$ combinations.
+An object creates a new hash, but that hash cannot be used to identify the original object (it is encrypted). 
+It is relevant to us as reaserchers for two reasons.
+
+#### 1. Indexing and anonymizing sampling units
+Unique, encrypted hashes can be created for any unique string in R,
+We can also use hashes to publish reproducible code with annonymized individual or location information if there are privacy or conservation concerns. 
+
+#### 2. Inventorying Files for Duplicates
+Files (images, mp3, csvs, .doc, pdf) can have a unique hash based on the underlying code, unique to each file.
+A hash does not change if the file name changes. 
+This allows us to inventory files, and ensure there are not duplicates or lost cases, before we perform analysis. 
+This is particularly useful when there are multiple people creating multiple copies of data in the field, and when data ends up going out to collaborators who may do what they will using their own snowflake of a workflow.
+
+#### 3. Inventorying and Renaming Files
+
+We can also rename files with their unique hash, which is useful if we wish to link transcribed data in their most upstream digitized form to our CSVs used in analysis.
+
+# Tutorials
+
+## 1.  Using hashes to identify duplicate files.
+Imagine you have a team of researchers, collecting data in the field. 
+This data all gets uploaded to a computer, backed up on several hard drives, and shared between collaborators. 
+At the analysis stage, all the field researchers hand the data over to the analysis team. 
+The team is concerned there are duplicate files, due to all the copies that various researchers have made.
+However, we do not wish to analyze data, which was collected once, more than once when we compile our files.
+
+First lets create two dataframes and write them to our local directory (likely this github repository if you pulled it).
+
+```{r df create, echo=TRUE}
+df1 <- data.frame (x1  = c("A" , "B" , "A" , "B" , "A" , "B"),
+                  x2 = c(1:6)
+                  )
+df2 <- data.frame (x1  = c("A" , "B" , "A" , "B" , "A" , "C"),
+                  x2 = c(0:5)
+                  )
+```
+We have our fake data frames. 
+Now we will write them to `.csv` files.
+```{r df csc write, echo=TRUE}
+write.csv(df1 , "datafile1.csv")
+write.csv(df2 , "datafile2.csv")
+#now we create the duplicate
+write.csv(df2 , "datafile3.csv")
+```
+And read all `csv` files in with a batch format into a vector with the file path.
+```{r csv read, echo=TRUE}
+wkdir <- getwd()
+list_1 <- list.files(path = wkdir , pattern = ".csv" , full.names=TRUE)
+print(list_1)
+```
+Using the `digest` function in the  [digest package](https://cran.r-project.org/web/packages/digest/index.html) we can look at hashes for each file:
+```{r file hash, echo=TRUE}
+digest(list_1[1], algo="sha1", file=TRUE)
+digest(list_1[2], algo="sha1", file=TRUE)
+digest(list_1[3], algo="sha1", file=TRUE)
+```
+
+Note that these `datafile2.csv` and  `datafile3.csv`, despite having different names return the same hash. It is because the contents are the same. We can use this information to identify duplicate files, to ensure that we do not have duplicates or errors in analysis, and check how these duplicates arose.
+
+## Hashing .JPG files
+The below shows how we can use hashes on all other file types, like `.jpg` or `.pdf` files, and identify duplicates.
+```{r file hase, echo=TRUE}
+ #assuming wd is this downloaded repo, thois will extract files of interest
+#normally you navigate to a folder of interest
+list_2 <- list.files(path=paste0(wkdir,"/images") , full.names=TRUE  , recursive=TRUE , pattern=".JPG" )
+list_2
+#this prints hash for each file
+for(i in 1:length(list_2)){
+   print(digest(list_2[i], algo="sha1", file=TRUE))
+}
+```
+Note top two identical JPGs with different names have same hash.
+
+We can append these hashes to our data frame, alongside filename, if desired.
+```{r file hash dataframe, echo=TRUE}
+ #assuming wd is this downloaded repo, thois will extract files of interest
+#normally you navigate to a folder of interest
+list_2 <- list.files(path=paste0(wkdir,"/images") , full.names=TRUE  , recursive=TRUE , pattern=".JPG" )
+list_2
+hash_list_2 <- rep(NA,length(list_2))
+#this prints hash for each file
+for(i in 1:length(list_2)){
+   hash_list_2[i] <- digest(list_2[i], algo="sha1", file=TRUE)
+}
+print(hash_list_2)
+
+df3 <- data.frame (file_location  = list_2,
+                  file_hash = hash_list_2,
+                  iguana = c(1,1,0,1,1)
+                  )
+print(df3)
+```
+Borrowing code and practice from my colleague Bret Beheim at MPI-EvAn in Leipzig, we can write a function that identifies duplicate files, and renames each file with the last 7 digits of the sha1 hash.
+These digits can also be appended to another file name.
+
+For data that is transcribed from handwritten paper forms or interviews, a unique hash is applied to a PDF scan of a form or .mp3 recording of a file. When that data is transcibed into a form or csv, the hash is used to link each observation in the final .csv to the original point of collection. Then the researcher can look for transcription errors, or relisten to interviews if they seem anyting suspicious (i.e. an individual appearing in a dataset before it is born, or individual code in dataset that should not exist).
+
+Here is code to rename image files.
+```{r check files list}
+
+files <- list.files(paste0(wkdir,"/images_2"), pattern="*.JPG", full.names=TRUE , recursive=TRUE) # get files from current WD
+
+rename_counter <- 0
+unchanged_counter <- 0
+
+for(i in 1:length(files)){
+    hash <- digest(files[i], algo="sha1", file=TRUE) #calculate hash for file
+    hash_name <- paste( substr( hash, 1, 7) , ".JPG", sep = "") #create new name with last 7 hash charachters
+    hash_name <- file.path("./images_2", hash_name)
+    if(files[i] != hash_name){
+        file.rename( files[i], hash_name )
+        rename_counter <- rename_counter + 1
+    } else {
+        unchanged_counter <- unchanged_counter + 1
+    }
+}
+
+print( paste0(rename_counter, " files have been renamed") )
+print( paste0(unchanged_counter, " files unchanged") )
+```
+# 3. Assigning a hash to an R object.
+Hashes can be used to annonymize data in an encrypted form. 
+If we wish to hide IDs, locations, or information about individual for privacy or conservation reasons we can assign an unique encrypted hash that can be reprduced by the owners of the dataset, but allow reproducible analyses to other researchers when sharing data.
+
+##Assigning an sha1 hash using the `digest` package in R
+We can create a master inventory of individual woodrats and dens.
+```{r df rat create, echo=TRUE}
+subject_ids <- data.frame (subject_id  = c("Uwe" , "Ute" , "Rutger" , "Razamatazz"),
+                  subject_id_sha1_hash = rep(NA,4)
+                  )
+print(subject_ids)
+```
+Now we can use th `sha1` function in the `digest` package to create a unique ID for each person. 
+First we convert the IDs to a character vector. It cannot be a factor. 
+```{r df rat id hash, echo=TRUE}
+subject_ids$subject_id <- as.character(subject_ids$subject_id)
+subject_ids$subject_id_sha1_hash <- sha1( subject_ids$rat_id )
+print(subject_ids)
+```
