@@ -15,25 +15,25 @@ library(digest)
 SHA-1 (Secure Hash Algorithm 1) is a cryptographic hash function that takes an input and produces a unique hash value (often a 40 digit hexadecimal number) designed by the NSA.
 An SHA-1 hash has a possible $2^{160}$ combinations.
 An object creates a new hash, but that hash cannot be used to identify the original object (it is encrypted). 
-It is relevant to us as reaserchers for two reasons.
+It is relevant to us as reaserchers for three reasons.
 
-#### 1. Indexing and anonymizing sampling units
-Unique, encrypted hashes can be created for any unique string in R,
-We can also use hashes to publish reproducible code with annonymized individual or location information if there are privacy or conservation concerns. 
-
-#### 2. Inventorying Files for Duplicates
+#### 1. Inventorying Files (without duplicates)
 Files (images, mp3, csvs, .doc, pdf) can have a unique hash based on the underlying code, unique to each file.
 A hash does not change if the file name changes. 
 This allows us to inventory files, and ensure there are not duplicates or lost cases, before we perform analysis. 
 This is particularly useful when there are multiple people creating multiple copies of data in the field, and when data ends up going out to collaborators who may do what they will using their own snowflake of a workflow.
 
-#### 3. Inventorying and Renaming Files
+#### 2. Naming Files
+We can also name files with their unique hash, which is useful if we wish to link transcribed data in their most upstream digitized form to our CSVs used in analysis.
 
-We can also rename files with their unique hash, which is useful if we wish to link transcribed data in their most upstream digitized form to our CSVs used in analysis.
+#### 3. Anonymizing data
+Unique, encrypted hashes can be created for any unique string in R,
+Thus, we can use hashes to publish reproducible code with annonymized individual or location information if there are privacy or conservation concerns. 
+
 
 # Tutorials
 
-## 1.  Using hashes to identify duplicate files.
+## 1.  Inventorying Files (without duplicates)
 Imagine you have a team of researchers, collecting data in the field. 
 This data all gets uploaded to a computer, backed up on several hard drives, and shared between collaborators. 
 At the analysis stage, all the field researchers hand the data over to the analysis team. 
@@ -73,7 +73,6 @@ digest(list_1[3], algo="sha1", file=TRUE)
 
 Note that these `datafile2.csv` and  `datafile3.csv`, despite having different names return the same hash. It is because the contents are the same. We can use this information to identify duplicate files, to ensure that we do not have duplicates or errors in analysis, and check how these duplicates arose.
 
-## Hashing .JPG files
 The below shows how we can use hashes on all other file types, like `.jpg` or `.pdf` files, and identify duplicates.
 ```{r file hase, echo=TRUE}
  #assuming wd is this downloaded repo, thois will extract files of interest
@@ -87,7 +86,7 @@ for(i in 1:length(list_2)){
 ```
 Note top two identical JPGs with different names have same hash.
 
-We can append these hashes to our data frame, alongside filename, if desired.
+We can save these hashes and the corresponding filename in a dataframe, if desired.
 ```{r file hash dataframe, echo=TRUE}
  #assuming wd is this downloaded repo, thois will extract files of interest
 #normally you navigate to a folder of interest
@@ -101,11 +100,13 @@ for(i in 1:length(list_2)){
 print(hash_list_2)
 
 df3 <- data.frame (file_location  = list_2,
-                  file_hash = hash_list_2,
-                  iguana = c(1,1,0,1,1)
+                  file_hash = hash_list_2
                   )
 print(df3)
 ```
+
+## 2.  Naming Files
+
 Borrowing code and practice from my colleague Bret Beheim at MPI-EvAn in Leipzig, we can write a function that identifies duplicate files, and renames each file with the last 7 digits of the sha1 hash.
 These digits can also be appended to another file name.
 
@@ -134,11 +135,11 @@ for(i in 1:length(files)){
 print( paste0(rename_counter, " files have been renamed") )
 print( paste0(unchanged_counter, " files unchanged") )
 ```
-# 3. Assigning a hash to an R object.
-Hashes can be used to annonymize data in an encrypted form. 
+## 3. Anonymizing data
+Hashes can be assigned to any R object and thus used to annonymize data in an encrypted form. 
 If we wish to hide IDs, locations, or information about individual for privacy or conservation reasons we can assign an unique encrypted hash that can be reprduced by the owners of the dataset, but allow reproducible analyses to other researchers when sharing data.
 
-##Assigning an sha1 hash using the `digest` package in R
+### Assigning an sha1 hash using the `digest` package in R
 We can create a master inventory of individual woodrats and dens.
 ```{r df rat create, echo=TRUE}
 subject_ids <- data.frame (subject_id  = c("Uwe" , "Ute" , "Rutger" , "Razamatazz"),
